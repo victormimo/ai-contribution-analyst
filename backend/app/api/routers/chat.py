@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from llama_index.core.chat_engine.types import BaseChatEngine
 from llama_index.core.llms import ChatMessage, MessageRole
 from app.engine import get_chat_engine
+from app.agent.openai import get_agent
+from llama_index.agent.openai import OpenAIAgent
 
 chat_router = r = APIRouter()
 
@@ -22,7 +24,7 @@ class _ChatData(BaseModel):
 async def chat(
     request: Request,
     data: _ChatData,
-    chat_engine: BaseChatEngine = Depends(get_chat_engine),
+    agent: OpenAIAgent = Depends(get_agent),
 ):
     # check preconditions and get last message
     if len(data.messages) == 0:
@@ -45,8 +47,7 @@ async def chat(
         for m in data.messages
     ]
 
-    # query chat engine
-    response = await chat_engine.astream_chat(lastMessage.content, messages)
+    response = await agent.astream_chat(lastMessage.content, messages)
 
     # stream response
     async def event_generator():
