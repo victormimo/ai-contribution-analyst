@@ -4,7 +4,6 @@ from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from llama_index.core.chat_engine.types import BaseChatEngine
 from llama_index.core.llms import ChatMessage, MessageRole
-from app.engine import get_chat_engine
 from app.agent.openai import get_agent
 from llama_index.agent.openai import OpenAIAgent
 
@@ -47,13 +46,23 @@ async def chat(
         for m in data.messages
     ]
 
-    response = await agent.astream_chat(lastMessage.content, messages)
+    try:
+        response = await agent.astream_chat(lastMessage.content, messages)
+    except Exception as e:
+        print("error ", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error in chat",
+        )
 
+    
     # stream response
     async def event_generator():
         async for token in response.async_response_gen():
+            print('token ', token)
             # If client closes connection, stop sending events
             if await request.is_disconnected():
+                print("connection stopped")
                 break
             yield token
 

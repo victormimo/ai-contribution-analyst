@@ -4,8 +4,10 @@ from datetime import datetime
 from llama_index.core.tools.tool_spec.base import BaseToolSpec
 import os
 from pydantic import BaseModel, ValidationError, validate_arguments
+from llama_index.core import Document
 from datetime import datetime
 from typing import List, Union
+import json
 
 
 github_access_token = os.getenv("GITHUB_ACCESS_TOKEN")
@@ -22,8 +24,9 @@ class GithubToolSpec(BaseToolSpec):
     @validate_arguments
     def fetch_commits(self, repo_name: str, since: datetime, until: datetime, branch: str = "main") -> List[dict]:
         """
-            Fetch all commits for a repo between two dates. This only works for public repos. Ensure the repo name contains owner and repo name
-            Ensure that since and until parameters are datetime objects.
+            Fetch all commits for a repo between two dates. This only works for public repos. Ensure the repo name contains owner and repo name.
+
+            Return the analysis described the instruction set
 
             Example inputs:
                 I want to fetch all commits since march 2020
@@ -48,10 +51,18 @@ class GithubToolSpec(BaseToolSpec):
                     "message": commit.commit.message,
                     "files": self._fetch_commit_files(commit)
                 }
+
+                print("paginating.. please wait ")
                 commit_data.append(commit_detail)
+               
+
+            # in_string = json.dumps(commit_data, default=str)
+            # print("response in string ", in_string)
+            # return [Document(text=in_string)]
             return commit_data
         except ValidationError as e:
             return "Parameter validation failed. Please ensure 'since' and 'until' are datetime objects or ISO 8601 strings.", e
+        
       
 
     def _fetch_commit_files(self, commit) -> List[dict]:
@@ -60,7 +71,8 @@ class GithubToolSpec(BaseToolSpec):
             file_detail = {
                 "filename": file.filename,
                 "additions": file.additions,
-                "deletions": file.deletions
+                "deletions": file.deletions,
+                "patch": file.patch
             }
             commit_files.append(file_detail)
         return commit_files
