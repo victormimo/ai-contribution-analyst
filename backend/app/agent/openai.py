@@ -1,44 +1,53 @@
-from llama_index.agent.openai import OpenAIAgent
-from llama_index.llms.openai import OpenAI as OpenAILLM
-from llama_index.core.settings import Settings
-from app.agent.system_prompt import system_prompt
-from app.tools.github_toolspec import GithubToolSpec
-from llama_index.core.tools.tool_spec.load_and_search.base import LoadAndSearchToolSpec
-from app.engine.github import load_automerging_retrieval_github, load_sentence_window_retrieval_github
-from llama_index.core.tools import QueryEngineTool, ToolMetadata
 import os
+from langchain_openai import ChatOpenAI
+from langchain import hub
+from langchain.agents import create_openai_functions_agent
+from langchain.agents import AgentExecutor
+from langchain.prompts import HumanMessagePromptTemplate
+from langchain_core.messages import SystemMessage
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.agents.format_scratchpad.openai_tools import (
+    format_to_openai_tool_messages,
+)
+from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
+from app.agent.tools.github_retriever import github_retriver
 
-import logging 
+from app.agent.system_prompt import system_prompt
 
-logger = logging.getLogger("uvicorn")
+llm = ChatOpenAI(model=os.getenv("MODEL"), temperature=0)
 
-# github_spec = GithubToolSpec()
+all_tools = [github_retriver]
 
+llm_with_tools = llm.bind_tools(all_tools)
 
-print(os.getenv("MODEL"))
+MEMORY_KEY = "chat_history"
+prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            system_prompt,
+        ),
+        MessagesPlaceholder(variable_name=MEMORY_KEY),
+        ("user", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ]
+)
 
-llm = OpenAILLM(model=os.getenv("MODEL"), temperature=0.1, system_prompt=system_prompt)
+agent = (
+    {
+        "input": lambda x: x["input"],
+        "agent_scratchpad": lambda x: format_to_openai_tool_messages(
+            x["intermediate_steps"]
+        ),
+        "chat_history": lambda x: x["chat_history"],
+    }
+    | prompt
+    | llm_with_tools
+    | OpenAIToolsAgentOutputParser()
+)
 
-# github_query_engine = load_automerging_retrieval_github(llm)
-github_query_engine = load_sentence_window_retrieval_github(llm)
-
-owner = "transfer-agent-protocol"
-repo = "tap-cap-table"
-branch = "main"
-
-# Load the tools
-query_tools = [
-    QueryEngineTool(
-        query_engine=github_query_engine,
-        metadata = ToolMetadata(
-            name="github_sentence_retrieval",
-            description= f"Github Sentence Window Query Engine for repo {owner}/{repo} in branch {branch}",
-        )
-    ),
-]
-
-agent = OpenAIAgent.from_tools(tools=query_tools, llm=llm, verbose=True, system_prompt=system_prompt)
+agent_executor = AgentExecutor(agent=agent, tools=all_tools, verbose=True)
 
 def get_agent():
-    return agent
-
+    return agent_executor
