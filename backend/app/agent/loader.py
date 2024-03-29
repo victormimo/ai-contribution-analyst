@@ -13,18 +13,19 @@ def load_commits():
     try:
         loader = DirectoryLoader(
             "./",
-            glob="*.txt",
-            use_multithreading=True,
+            glob="**/*.txt",
+            # use_multithreading=True,
             show_progress=True,
             loader_cls=TextLoader,
         )
 
         docs = loader.load()
-        print("docs ", docs)
+
         print(f"{len(docs)} documents were loaded")
         return docs
     except Exception as e:
         print(f"An error occurred: {e}")
         return []
 
+docs = load_commits()
 
