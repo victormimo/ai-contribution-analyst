@@ -4,3 +4,5 @@ storage
 *.ipynb
 notebooks
 data
+commit_data.txt
+tap_files.txt
